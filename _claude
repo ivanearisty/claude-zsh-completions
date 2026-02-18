@@ -1,0 +1,129 @@
+#compdef claude
+
+_claude_auth() {
+  local -a subcmds
+  subcmds=(
+    'login:Sign in to your Anthropic account'
+    'logout:Log out from your Anthropic account'
+    'status:Show authentication status'
+    'help:Display help for command'
+  )
+  _describe 'auth command' subcmds
+}
+
+_claude_mcp() {
+  local -a subcmds
+  subcmds=(
+    'add:Add an MCP server to Claude Code'
+    'add-from-claude-desktop:Import MCP servers from Claude Desktop'
+    'add-json:Add an MCP server with a JSON string'
+    'get:Get details about an MCP server'
+    'list:List configured MCP servers'
+    'remove:Remove an MCP server'
+    'reset-project-choices:Reset all approved and rejected project-scoped servers'
+    'serve:Start the Claude Code MCP server'
+    'help:Display help for command'
+  )
+  _describe 'mcp command' subcmds
+}
+
+_claude_plugin() {
+  local -a subcmds
+  subcmds=(
+    'help:Display help for command'
+  )
+  _describe 'plugin command' subcmds
+}
+
+_claude() {
+  local context state state_descr line
+  typeset -A opt_args
+
+  _arguments -C \
+    '(- *)'{-h,--help}'[Display help for command]' \
+    '(- *)'{-v,--version}'[Output the version number]' \
+    '--add-dir[Additional directories to allow tool access to]:directories:_files -/' \
+    '--agent[Agent for the current session]:agent:' \
+    '--agents[JSON object defining custom agents]:json:' \
+    '--allow-dangerously-skip-permissions[Enable bypassing all permission checks as an option]' \
+    '--allowedTools[Comma or space-separated list of tool names to allow]:tools:' \
+    '--allowed-tools[Comma or space-separated list of tool names to allow]:tools:' \
+    '--append-system-prompt[Append a system prompt]:prompt:' \
+    '--betas[Beta headers to include in API requests]:betas:' \
+    '--chrome[Enable Claude in Chrome integration]' \
+    '(-c --continue)'{-c,--continue}'[Continue the most recent conversation]' \
+    '--dangerously-skip-permissions[Bypass all permission checks]' \
+    '(-d --debug)'{-d,--debug}'[Enable debug mode with optional category filtering]::filter:' \
+    '--debug-file[Write debug logs to a specific file path]:path:_files' \
+    '--disable-slash-commands[Disable all skills]' \
+    '--disallowedTools[Comma or space-separated list of tool names to deny]:tools:' \
+    '--disallowed-tools[Comma or space-separated list of tool names to deny]:tools:' \
+    '--effort[Effort level for the current session]:level:(low medium high)' \
+    '--fallback-model[Enable automatic fallback to specified model]:model:' \
+    '--file[File resources to download at startup]:specs:_files' \
+    '--fork-session[Create a new session ID instead of reusing the original]' \
+    '--from-pr[Resume a session linked to a PR]::pr number or url:' \
+    '--ide[Automatically connect to IDE on startup]' \
+    '--include-partial-messages[Include partial message chunks as they arrive]' \
+    '--input-format[Input format]:format:(text stream-json)' \
+    '--json-schema[JSON Schema for structured output validation]:schema:' \
+    '--max-budget-usd[Maximum dollar amount to spend on API calls]:amount:' \
+    '--mcp-config[Load MCP servers from JSON files or strings]:configs:_files' \
+    '--mcp-debug[Enable MCP debug mode]' \
+    '--model[Model for the current session]:model:(opus sonnet haiku claude-opus-4-6 claude-sonnet-4-5-20250929 claude-haiku-4-5-20251001)' \
+    '--no-chrome[Disable Claude in Chrome integration]' \
+    '--no-session-persistence[Disable session persistence]' \
+    '--output-format[Output format]:format:(text json stream-json)' \
+    '--permission-mode[Permission mode]:mode:(acceptEdits bypassPermissions default delegate dontAsk plan)' \
+    '--plugin-dir[Load plugins from directories]:paths:_files -/' \
+    '(-p --print)'{-p,--print}'[Print response and exit]' \
+    '--replay-user-messages[Re-emit user messages from stdin back on stdout]' \
+    '(-r --resume)'{-r,--resume}'[Resume a conversation by session ID]::session id:' \
+    '--session-id[Use a specific session ID]:uuid:' \
+    '--setting-sources[Comma-separated list of setting sources]:sources:' \
+    '--settings[Path to a settings JSON file or JSON string]:file-or-json:_files' \
+    '--strict-mcp-config[Only use MCP servers from --mcp-config]' \
+    '--system-prompt[System prompt to use for the session]:prompt:' \
+    '--tools[Specify the list of available tools]:tools:' \
+    '--verbose[Override verbose mode setting from config]' \
+    '1: :->command' \
+    '*::arg:->args'
+
+  case $state in
+    command)
+      local -a commands
+      commands=(
+        'auth:Manage authentication'
+        'doctor:Check the health of your Claude Code auto-updater'
+        'install:Install Claude Code native build'
+        'mcp:Configure and manage MCP servers'
+        'plugin:Manage Claude Code plugins'
+      )
+      _describe 'command' commands
+      ;;
+    args)
+      case $line[1] in
+        auth)
+          _claude_auth
+          ;;
+        mcp)
+          _claude_mcp
+          ;;
+        install)
+          _arguments \
+            '--force[Force installation even if already installed]' \
+            '(- *)'{-h,--help}'[Display help for command]' \
+            '1:target:(stable latest)'
+          ;;
+        plugin)
+          _claude_plugin
+          ;;
+        doctor)
+          _arguments '(- *)'{-h,--help}'[Display help for command]'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_claude "$@"
