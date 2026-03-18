@@ -8,7 +8,27 @@ _claude_auth() {
     'status:Show authentication status'
     'help:Display help for command'
   )
-  _describe 'auth command' subcmds
+
+  case $words[3] in
+    login)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '--email[Pre-populate email address on the login page]:email:' \
+        '--sso[Force SSO login flow]'
+      ;;
+    status)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '--json[Output as JSON]' \
+        '--text[Output as human-readable text]'
+      ;;
+    logout)
+      _arguments '(- *)'{-h,--help}'[Display help for command]'
+      ;;
+    *)
+      _describe 'auth command' subcmds
+      ;;
+  esac
 }
 
 _claude_mcp() {
@@ -24,15 +44,167 @@ _claude_mcp() {
     'serve:Start the Claude Code MCP server'
     'help:Display help for command'
   )
-  _describe 'mcp command' subcmds
+
+  case $words[3] in
+    add)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '--callback-port[Fixed port for OAuth callback]:port:' \
+        '--client-id[OAuth client ID for HTTP/SSE servers]:clientId:' \
+        '--client-secret[Prompt for OAuth client secret]' \
+        '(-e --env)'{-e,--env}'[Set environment variables]:env:' \
+        '(-H --header)'{-H,--header}'[Set WebSocket headers]:header:' \
+        '(-s --scope)'{-s,--scope}'[Configuration scope]:scope:(local user project)' \
+        '(-t --transport)'{-t,--transport}'[Transport type]:transport:(stdio sse http)' \
+        '1:name:' \
+        '2:command or url:_files'
+      ;;
+    add-json)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '--client-secret[Prompt for OAuth client secret]' \
+        '(-s --scope)'{-s,--scope}'[Configuration scope]:scope:(local user project)' \
+        '1:name:' \
+        '2:json:'
+      ;;
+    add-from-claude-desktop)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '(-s --scope)'{-s,--scope}'[Configuration scope]:scope:(local user project)'
+      ;;
+    remove)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '(-s --scope)'{-s,--scope}'[Configuration scope]:scope:(local user project)' \
+        '1:name:'
+      ;;
+    serve)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '(-d --debug)'{-d,--debug}'[Enable debug mode]' \
+        '--verbose[Override verbose mode setting from config]'
+      ;;
+    get)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '1:name:'
+      ;;
+    reset-project-choices)
+      _arguments '(- *)'{-h,--help}'[Display help for command]'
+      ;;
+    list)
+      _arguments '(- *)'{-h,--help}'[Display help for command]'
+      ;;
+    *)
+      _describe 'mcp command' subcmds
+      ;;
+  esac
+}
+
+_claude_plugin_marketplace() {
+  local -a subcmds
+  subcmds=(
+    'add:Add a marketplace from a URL, path, or GitHub repo'
+    'list:List all configured marketplaces'
+    'remove:Remove a configured marketplace'
+    'update:Update marketplace(s) from their source'
+    'help:Display help for command'
+  )
+
+  case $words[4] in
+    add)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '--scope[Where to declare the marketplace]:scope:(user project local)' \
+        '--sparse[Limit checkout to specific directories]:paths:_files -/' \
+        '1:source:'
+      ;;
+    list)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '--json[Output as JSON]'
+      ;;
+    remove|rm)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '1:name:'
+      ;;
+    update)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '1::name:'
+      ;;
+    *)
+      _describe 'marketplace command' subcmds
+      ;;
+  esac
 }
 
 _claude_plugin() {
   local -a subcmds
   subcmds=(
+    'install:Install a plugin from available marketplaces'
+    'uninstall:Uninstall an installed plugin'
+    'list:List installed plugins'
+    'enable:Enable a disabled plugin'
+    'disable:Disable an enabled plugin'
+    'update:Update a plugin to the latest version'
+    'validate:Validate a plugin or marketplace manifest'
+    'marketplace:Manage Claude Code marketplaces'
     'help:Display help for command'
   )
-  _describe 'plugin command' subcmds
+
+  case $words[3] in
+    install|i)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '(-s --scope)'{-s,--scope}'[Installation scope]:scope:(user project local)' \
+        '1:plugin:'
+      ;;
+    uninstall|remove)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '--keep-data[Preserve the plugin'\''s persistent data directory]' \
+        '(-s --scope)'{-s,--scope}'[Uninstall from scope]:scope:(user project local)' \
+        '1:plugin:'
+      ;;
+    list)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '--available[Include available plugins from marketplaces]' \
+        '--json[Output as JSON]'
+      ;;
+    enable)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '(-s --scope)'{-s,--scope}'[Installation scope]:scope:(user project local)' \
+        '1:plugin:'
+      ;;
+    disable)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '(-a --all)'{-a,--all}'[Disable all enabled plugins]' \
+        '(-s --scope)'{-s,--scope}'[Installation scope]:scope:(user project local)' \
+        '1::plugin:'
+      ;;
+    update)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '(-s --scope)'{-s,--scope}'[Installation scope]:scope:(user project local managed)' \
+        '1:plugin:'
+      ;;
+    validate)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '1:path:_files'
+      ;;
+    marketplace)
+      _claude_plugin_marketplace
+      ;;
+    *)
+      _describe 'plugin command' subcmds
+      ;;
+  esac
 }
 
 _claude() {
@@ -50,6 +222,7 @@ _claude() {
     '--allowed-tools[Comma or space-separated list of tool names to allow]:tools:' \
     '--append-system-prompt[Append a system prompt]:prompt:' \
     '--betas[Beta headers to include in API requests]:betas:' \
+    '--brief[Enable SendUserMessage tool for agent-to-user communication]' \
     '--chrome[Enable Claude in Chrome integration]' \
     '(-c --continue)'{-c,--continue}'[Continue the most recent conversation]' \
     '--dangerously-skip-permissions[Bypass all permission checks]' \
@@ -58,7 +231,7 @@ _claude() {
     '--disable-slash-commands[Disable all skills]' \
     '--disallowedTools[Comma or space-separated list of tool names to deny]:tools:' \
     '--disallowed-tools[Comma or space-separated list of tool names to deny]:tools:' \
-    '--effort[Effort level for the current session]:level:(low medium high)' \
+    '--effort[Effort level for the current session]:level:(low medium high max)' \
     '--fallback-model[Enable automatic fallback to specified model]:model:' \
     '--file[File resources to download at startup]:specs:_files' \
     '--fork-session[Create a new session ID instead of reusing the original]' \
@@ -69,12 +242,13 @@ _claude() {
     '--json-schema[JSON Schema for structured output validation]:schema:' \
     '--max-budget-usd[Maximum dollar amount to spend on API calls]:amount:' \
     '--mcp-config[Load MCP servers from JSON files or strings]:configs:_files' \
-    '--mcp-debug[Enable MCP debug mode]' \
-    '--model[Model for the current session]:model:(opus sonnet haiku claude-opus-4-6 claude-sonnet-4-5-20250929 claude-haiku-4-5-20251001)' \
+    '--mcp-debug[Enable MCP debug mode (deprecated, use --debug)]' \
+    '--model[Model for the current session]:model:(opus sonnet haiku claude-opus-4-6 claude-sonnet-4-6 claude-haiku-4-5-20251001)' \
+    '(-n --name)'{-n,--name}'[Set a display name for this session]:name:' \
     '--no-chrome[Disable Claude in Chrome integration]' \
     '--no-session-persistence[Disable session persistence]' \
     '--output-format[Output format]:format:(text json stream-json)' \
-    '--permission-mode[Permission mode]:mode:(acceptEdits bypassPermissions default delegate dontAsk plan)' \
+    '--permission-mode[Permission mode]:mode:(acceptEdits bypassPermissions default dontAsk plan auto)' \
     '--plugin-dir[Load plugins from directories]:paths:_files -/' \
     '(-p --print)'{-p,--print}'[Print response and exit]' \
     '--replay-user-messages[Re-emit user messages from stdin back on stdout]' \
@@ -84,8 +258,10 @@ _claude() {
     '--settings[Path to a settings JSON file or JSON string]:file-or-json:_files' \
     '--strict-mcp-config[Only use MCP servers from --mcp-config]' \
     '--system-prompt[System prompt to use for the session]:prompt:' \
+    '--tmux[Create a tmux session for the worktree]' \
     '--tools[Specify the list of available tools]:tools:' \
     '--verbose[Override verbose mode setting from config]' \
+    '(-w --worktree)'{-w,--worktree}'[Create a new git worktree for this session]::name:' \
     '1: :->command' \
     '*::arg:->args'
 
@@ -93,16 +269,24 @@ _claude() {
     command)
       local -a commands
       commands=(
+        'agents:List configured agents'
         'auth:Manage authentication'
         'doctor:Check the health of your Claude Code auto-updater'
         'install:Install Claude Code native build'
         'mcp:Configure and manage MCP servers'
         'plugin:Manage Claude Code plugins'
+        'setup-token:Set up a long-lived authentication token'
+        'update:Check for updates and install if available'
       )
       _describe 'command' commands
       ;;
     args)
       case $line[1] in
+        agents)
+          _arguments \
+            '(- *)'{-h,--help}'[Display help for command]' \
+            '--setting-sources[Comma-separated list of setting sources]:sources:'
+          ;;
         auth)
           _claude_auth
           ;;
@@ -115,10 +299,16 @@ _claude() {
             '(- *)'{-h,--help}'[Display help for command]' \
             '1:target:(stable latest)'
           ;;
-        plugin)
+        plugin|plugins)
           _claude_plugin
           ;;
         doctor)
+          _arguments '(- *)'{-h,--help}'[Display help for command]'
+          ;;
+        setup-token)
+          _arguments '(- *)'{-h,--help}'[Display help for command]'
+          ;;
+        update|upgrade)
           _arguments '(- *)'{-h,--help}'[Display help for command]'
           ;;
       esac
