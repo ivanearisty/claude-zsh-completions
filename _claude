@@ -13,6 +13,8 @@ _claude_auth() {
     login)
       _arguments \
         '(- *)'{-h,--help}'[Display help for command]' \
+        '--claudeai[Use Claude subscription (default)]' \
+        '--console[Use Anthropic Console (API usage billing)]' \
         '--email[Pre-populate email address on the login page]:email:' \
         '--sso[Force SSO login flow]'
       ;;
@@ -207,6 +209,33 @@ _claude_plugin() {
   esac
 }
 
+_claude_auto_mode() {
+  local -a subcmds
+  subcmds=(
+    'config:Print the effective auto mode config as JSON'
+    'critique:Get AI feedback on your custom auto mode rules'
+    'defaults:Print the default auto mode environment, allow, and deny rules as JSON'
+    'help:Display help for command'
+  )
+
+  case $words[3] in
+    config)
+      _arguments '(- *)'{-h,--help}'[Display help for command]'
+      ;;
+    critique)
+      _arguments \
+        '(- *)'{-h,--help}'[Display help for command]' \
+        '--model[Override which model is used]:model:'
+      ;;
+    defaults)
+      _arguments '(- *)'{-h,--help}'[Display help for command]'
+      ;;
+    *)
+      _describe 'auto-mode command' subcmds
+      ;;
+  esac
+}
+
 _claude() {
   local context state state_descr line
   typeset -A opt_args
@@ -221,6 +250,7 @@ _claude() {
     '--allowedTools[Comma or space-separated list of tool names to allow]:tools:' \
     '--allowed-tools[Comma or space-separated list of tool names to allow]:tools:' \
     '--append-system-prompt[Append a system prompt]:prompt:' \
+    '--bare[Minimal mode: skip hooks, LSP, plugin sync, attribution, auto-memory, and more]' \
     '--betas[Beta headers to include in API requests]:betas:' \
     '--brief[Enable SendUserMessage tool for agent-to-user communication]' \
     '--chrome[Enable Claude in Chrome integration]' \
@@ -271,6 +301,7 @@ _claude() {
       commands=(
         'agents:List configured agents'
         'auth:Manage authentication'
+        'auto-mode:Inspect auto mode classifier configuration'
         'doctor:Check the health of your Claude Code auto-updater'
         'install:Install Claude Code native build'
         'mcp:Configure and manage MCP servers'
@@ -289,6 +320,9 @@ _claude() {
           ;;
         auth)
           _claude_auth
+          ;;
+        auto-mode)
+          _claude_auto_mode
           ;;
         mcp)
           _claude_mcp
