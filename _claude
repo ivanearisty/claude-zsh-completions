@@ -2,6 +2,118 @@
 # Zsh completions for Claude Code CLI (>= 2.1.x)
 # https://github.com/ivanearisty/claude-zsh-completions
 
+# ---------------------------------------------------------------------------
+# Dynamic completion: resumable conversations for the current project.
+#
+# Claude Code stores each conversation at
+#   ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/<enc>/<uuid>.jsonl
+# where <enc> is $PWD with every non-alphanumeric character replaced by '-'.
+# `claude --resume`/`-r` is scoped to the current directory, so we surface that
+# one project's sessions, newest first, each labelled with the session's
+# AI-generated title (the `ai-title` event, which sits near the top of the
+# file) and a relative timestamp. Extraction is memoised per
+# (dir, newest-mtime, count) in a shell-global associative array so repeated
+# TAB presses are instant; the key changes automatically whenever a session is
+# added, removed, or touched (e.g. resumed), so the cache self-invalidates.
+#
+# `jq`, when present, is used to parse the single matched JSON line robustly;
+# without it we fall back to a best-effort string scrape. Tunables:
+#   CLAUDE_CONFIG_DIR   override the ~/.claude location
+#   CLAUDE_RESUME_MAX   cap the number of sessions scanned (default 50)
+# ---------------------------------------------------------------------------
+
+typeset -gA _claude_session_cache
+
+_claude_project_session_dir() {
+  print -r -- "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/${PWD//[^a-zA-Z0-9]/-}"
+}
+
+_claude_session_reltime() {
+  local -i age=$(( EPOCHSECONDS - $1 ))
+  if   (( age < 60 ));     then print -r -- 'just now'
+  elif (( age < 3600 ));   then print -r -- "$(( age / 60 ))m ago"
+  elif (( age < 86400 ));  then print -r -- "$(( age / 3600 ))h ago"
+  elif (( age < 604800 )); then print -r -- "$(( age / 86400 ))d ago"
+  else strftime '%Y-%m-%d' "$1"
+  fi
+}
+
+_claude_session_title() {
+  # $1 = path to a session .jsonl. Echoes a single-line, <=60ch human label:
+  # the AI title if present, else the first user prompt, else "(untitled)".
+  local f=$1 hblob l marker='' title=''
+  hblob="$(head -n 80 -- "$f" 2>/dev/null)"
+  for l in ${(f)hblob}; do
+    [[ $l == *'"type":"ai-title"'* ]] && { marker=$l; break }
+  done
+  if [[ -n $marker ]]; then
+    if (( $+commands[jq] )); then
+      title="$(print -r -- "$marker" | jq -r '.aiTitle // empty' 2>/dev/null)"
+    else
+      title="${marker#*\"aiTitle\":\"}"; title="${title%%\"*}"
+    fi
+  fi
+  if [[ -z $title ]]; then
+    marker=''
+    for l in ${(f)hblob}; do
+      [[ $l == *'"type":"user"'* ]] && { marker=$l; break }
+    done
+    if [[ -n $marker ]] && (( $+commands[jq] )); then
+      title="$(print -r -- "$marker" | jq -r 'if (.message.content|type)=="string" then .message.content else empty end' 2>/dev/null)"
+    fi
+  fi
+  title="${title//$'\n'/ }"
+  (( ${#title} > 60 )) && title="${title[1,57]}..."
+  print -r -- "${title:-(untitled)}"
+}
+
+_claude_sessions() {
+  emulate -L zsh
+  setopt local_options extended_glob no_nomatch
+  zmodload zsh/datetime 2>/dev/null
+  zmodload -F zsh/stat b:zstat 2>/dev/null
+
+  local dir; dir="$(_claude_project_session_dir)"
+  [[ -d $dir ]] || return 1
+
+  local -a files
+  files=( $dir/*.jsonl(Nom) )         # newest mtime first
+  (( ${#files} )) || return 1
+
+  local -i max=${CLAUDE_RESUME_MAX:-50}
+  (( ${#files} > max )) && files=( ${files[1,max]} )
+
+  # Cache key folds in the newest mtime and the file count, so adding,
+  # removing, or touching any session invalidates it for free.
+  local -a newest_mtime
+  zstat -A newest_mtime +mtime -- "$files[1]" 2>/dev/null
+  local key="$dir:${newest_mtime[1]:-0}:${#files}"
+
+  local blob="${_claude_session_cache[$key]}"
+  if [[ -z $blob ]]; then
+    local f id title
+    local -a mtime lines
+    for f in $files; do
+      id="${f:t:r}"
+      zstat -A mtime +mtime -- "$f" 2>/dev/null
+      title="$(_claude_session_title "$f")"
+      lines+=( "${id}"$'\t'"${title}  ·  $(_claude_session_reltime ${mtime[1]:-0})  ·  ${id[1,8]}" )
+    done
+    blob="${(F)lines}"
+    _claude_session_cache=( "$key" "$blob" )   # retain only the freshest key
+  fi
+
+  local -a ids disp
+  local line
+  for line in ${(f)blob}; do
+    ids+=( "${line%%$'\t'*}" )
+    disp+=( "${line#*$'\t'}" )
+  done
+  (( ${#ids} )) || return 1
+
+  compadd -Q -V claude-sessions -d disp -a ids
+}
+
 _claude_auth() {
   local -a subcmds
   subcmds=(
@@ -291,11 +403,13 @@ _claude() {
   typeset -A opt_args
 
   # NOTE on edge cases:
-  # 1. Flags with optional values (e.g. --resume [value]) use `::message:( )`
-  #    so zsh treats the value as an OPTIONAL argument and falls back to an
-  #    explicit empty completion action. This prevents the parser from
-  #    swallowing a following flag like `--model`. The empty action `( )`
-  #    is what makes `claude --resume <id> --<TAB>` keep offering flags.
+  # 1. Flags with optional values use the `::message:ACTION` form (double colon
+  #    = OPTIONAL argument) so the parser never swallows a following flag like
+  #    `--model`; `claude --resume <id> --<TAB>` keeps offering flags. For most
+  #    such flags (--from-pr, --worktree, --remote-control, --debug) ACTION is
+  #    the explicit empty action `( )` (nothing sensible to suggest). --resume
+  #    instead points at `_claude_sessions`, which lists the current project's
+  #    resumable conversations; being optional, it still won't swallow flags.
   # 2. The positional command slot uses `1:: :->command` (double colon =
   #    optional). With a required `1:`, zsh becomes confused after an
   #    optional-arg flag consumes its value and `--<TAB>` stops completing.
@@ -351,7 +465,7 @@ _claude() {
     '--remote-control[Start an interactive session with Remote Control enabled]::name:( )' \
     '--remote-control-session-name-prefix[Prefix for auto-generated Remote Control session names]:prefix: ' \
     '--replay-user-messages[Re-emit user messages from stdin back on stdout for acknowledgment]' \
-    '(-r --resume)'{-r,--resume}'[Resume a conversation by session ID, or open picker]::session id:( )' \
+    '(-r --resume)'{-r,--resume}'[Resume a conversation by session ID, or open picker]::session id:_claude_sessions' \
     '--session-id[Use a specific session ID for the conversation (must be a valid UUID)]:uuid: ' \
     '--setting-sources[Comma-separated list of setting sources (user, project, local)]:sources: ' \
     '--settings[Path to a settings JSON file or a JSON string]:file-or-json:_files' \

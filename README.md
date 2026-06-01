@@ -6,9 +6,38 @@ Covers every flag, subcommand (`agents`, `auth`, `auto-mode`, `doctor`, `install
 
 Handles a few edge cases that trip up naive completions:
 
+- **`--resume`/`-r` completes your actual conversations.** `claude --resume <TAB>` lists the current project's resumable sessions, newest first, each labelled with its AI-generated title and a relative timestamp — pick one and the real session UUID is inserted. (See [Dynamic session completion](#dynamic-session-completion).)
 - Flags with optional values (e.g. `--resume [id]`, `--from-pr [value]`, `--worktree [name]`, `--remote-control [name]`, `--debug [filter]`) no longer swallow the next flag. `claude --resume <id> --<TAB>` continues to complete flags like `--model`, `--effort`, etc.
 - Repeatable flags (`--add-dir`, `--file`, `--mcp-config`, `--plugin-dir`, `--plugin-url`, `mcp add -e/-H`) can be passed multiple times.
 - The positional command slot is optional, so trailing flags after a free-form prompt still complete.
+
+## Dynamic session completion
+
+`claude --resume` (and `-r`) resumes a conversation in the *current directory*. Claude Code stores each conversation as a JSONL transcript under `~/.claude/projects/<encoded-cwd>/<uuid>.jsonl`, so the completion reads that directory and offers the real sessions:
+
+```
+$ claude --resume <TAB>
+Enhance Claude CLI zsh completions with resume flag  ·  just now  ·  46c54acf
+Enable completions for homebrew packages             ·  2m ago    ·  0647ebba
+Transcribe Zoom recordings with Whisper              ·  7h ago    ·  e2f2fa17
+Set up SSH tunnel to Piazza dev app                  ·  8h ago    ·  6e9aee95
+...
+```
+
+The label is the session's AI-generated title (the `ai-title` event in the transcript), falling back to the first user prompt, then `(untitled)`. Selecting an entry inserts the full session UUID, so Claude resumes that conversation directly instead of opening the picker. (Typing a free-form search term still works too — Claude's picker matches it.)
+
+Notes:
+
+- **Scoped to `$PWD`.** Only sessions started in the current directory are shown, matching how `--resume` itself behaves.
+- **Cached for speed.** Titles are extracted once and memoised per `(directory, newest-mtime, session-count)` in a shell-global array, so repeated `<TAB>` is instant. The cache self-invalidates whenever a session is added, removed, or touched.
+- **`jq` is optional.** When installed it parses titles robustly; otherwise a lightweight fallback is used.
+
+Tunables (environment variables):
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `CLAUDE_CONFIG_DIR` | `~/.claude` | Where Claude Code stores its `projects/` transcripts. |
+| `CLAUDE_RESUME_MAX` | `50` | Cap on how many recent sessions are scanned/offered. |
 
 ## Install
 
