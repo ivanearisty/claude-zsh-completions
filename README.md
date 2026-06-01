@@ -62,6 +62,16 @@ Reload your shell:
 source ~/.zshrc
 ```
 
+### Homebrew
+
+```sh
+brew tap ivanearisty/claude-zsh-completions https://github.com/ivanearisty/claude-zsh-completions
+brew install claude-zsh-completions          # latest tagged release
+brew install --HEAD claude-zsh-completions   # or track main
+```
+
+This installs `_claude` into `$(brew --prefix)/share/zsh/site-functions`, which Homebrew's zsh setup already puts on your `fpath`. Then `autoload -Uz compinit && compinit`.
+
 ### Manual
 
 Copy `_claude` to any directory in your `$fpath` and rebuild the completion cache:
@@ -169,6 +179,20 @@ python3 tools/cli_surface.py generate    # emit a regenerated _claude to stdout
 ### Version tracking
 
 `.github/workflows/track-cli.yml` runs weekly (and on demand): it installs the latest Claude Code, runs `check`, and if the CLI surface has drifted it opens a PR (`cli-sync/<version>`) containing the drift report, a refreshed help fixture, and a regenerated `_claude.generated` reference to fold in by hand. It uses the preinstalled `gh` CLI — no third-party marketplace actions.
+
+### Releasing
+
+Tags track the Claude Code version they were validated against (`vMAJOR.MINOR.PATCH`):
+
+```sh
+git tag v2.1.159 && git push origin v2.1.159
+tools/update-formula.sh v2.1.159     # fetches the tarball, updates url + sha256
+git commit -am "brew: release v2.1.159" && git push
+```
+
+### Contributing upstream
+
+The completion can also live in [`zsh-users/zsh-completions`](https://github.com/zsh-users/zsh-completions): copy `_claude` into that repo's `src/` and open a PR. Distro `zsh-completions` packages then ship it system-wide with no per-user setup.
 
 ## License
 

@@ -40,3 +40,14 @@ jobs:
 
       - name: Run test suite
         run: zsh test/run.zsh
+
+  scripts:
+    name: lint scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint shell, Python, and the Homebrew formula
+        run: |
+          bash -n tools/update-formula.sh
+          python3 -m py_compile tools/cli_surface.py
+          ruby -c Formula/claude-zsh-completions.rb
