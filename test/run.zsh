@@ -170,6 +170,40 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+section "tool: cli_surface.py"
+if (( $+commands[python3] )); then
+  local fixtures="$ROOT/test/fixtures/help"
+  # positive: committed _claude covers the fixture CLI surface
+  if python3 "$ROOT/tools/cli_surface.py" check --help-dir "$fixtures" \
+       --claude-file "$COMPFILE" >/dev/null 2>&1
+  then ok "check: _claude has zero drift against the help fixture"
+  else nope "check: unexpected drift against the committed help fixture"; fi
+
+  # negative: a fixture with an extra flag must be reported as drift. Inject it
+  # INSIDE the Options: block (the parser ignores anything after Commands:).
+  local dfix; dfix="$(mktemp -d)"
+  awk '1; /^Options:/{print "  --xyzzy-not-real <x>                  A flag that does not exist"}' \
+     "$fixtures/_root.txt" > "$dfix/_root.txt"
+  if python3 "$ROOT/tools/cli_surface.py" check --help-dir "$dfix" \
+       --claude-file "$COMPFILE" >/dev/null 2>&1
+  then nope "check: failed to detect an injected missing flag"
+  else ok "check: detects injected missing flag (exit 1)"; fi
+  rm -rf "$dfix"
+
+  # generate: output must parse as zsh
+  local gen; gen="$(mktemp)"
+  python3 "$ROOT/tools/cli_surface.py" generate --help-dir "$fixtures" \
+     --claude-file "$COMPFILE" > "$gen" 2>/dev/null
+  if zsh -n "$gen" 2>/dev/null; then ok "generate: emitted _claude parses (zsh -n)"
+  else nope "generate: emitted _claude has a syntax error"; fi
+  grep -q '_claude_sessions()' "$gen" && ok "generate: preserves the dynamic block" \
+                                      || nope "generate: lost the dynamic block"
+  rm -f "$gen"
+else
+  print -P "  %F{yellow}skip%f python3 unavailable"
+fi
+
+# ---------------------------------------------------------------------------
 integer PASS FAIL
 PASS=$(grep -c '^P' "$RESULTS")   # grep -c prints 0 (and exits 1) on no match
 FAIL=$(grep -c '^F' "$RESULTS")

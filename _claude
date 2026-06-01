@@ -2,6 +2,7 @@
 # Zsh completions for Claude Code CLI (>= 2.1.x)
 # https://github.com/ivanearisty/claude-zsh-completions
 
+# >>> dynamic-sessions (preserved by tools/cli_surface.py) >>>
 # ---------------------------------------------------------------------------
 # Dynamic completion: resumable conversations for the current project.
 #
@@ -113,6 +114,7 @@ _claude_sessions() {
 
   compadd -Q -V claude-sessions -d disp -a ids
 }
+# <<< dynamic-sessions <<<
 
 _claude_auth() {
   local -a subcmds
@@ -462,6 +464,7 @@ _claude() {
     \*--plugin-dir'[Load a plugin from a directory or .zip for this session only]:path:_files -/' \
     \*--plugin-url'[Fetch a plugin .zip from a URL for this session only]:url: ' \
     '(-p --print)'{-p,--print}'[Print response and exit (useful for pipes)]' \
+    '--prompt-suggestions[Enable prompt suggestions; in print/SDK mode emits a predicted next prompt each turn]::value:(true false 1 0 yes no on off)' \
     '--remote-control[Start an interactive session with Remote Control enabled]::name:( )' \
     '--remote-control-session-name-prefix[Prefix for auto-generated Remote Control session names]:prefix: ' \
     '--replay-user-messages[Re-emit user messages from stdin back on stdout for acknowledgment]' \

@@ -1,0 +1,79 @@
+name: track-cli
+
+# Watches the live Claude Code CLI and opens a PR when its flag/command surface
+# drifts from _claude. Uses the preinstalled `gh` CLI (no third-party actions).
+on:
+  schedule:
+    - cron: "17 9 * * 1"   # Mondays 09:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install zsh + Claude Code
+        run: |
+          sudo apt-get update && sudo apt-get install -y zsh
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Detect drift
+        id: drift
+        run: |
+          set +e
+          python3 tools/cli_surface.py check | tee drift-report.txt
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          VER="$(claude --version | awk '{print $1}')"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Open sync PR on drift
+        if: steps.drift.outputs.code != '0'
+        run: |
+          set -euo pipefail
+          VER="${{ steps.drift.outputs.version }}"
+          BRANCH="cli-sync/${VER}"
+
+          # Skip if a PR for this version is already open.
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number -q '.[].number')" ]; then
+            echo "PR for $BRANCH already open; nothing to do."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+
+          # Refresh the parser fixture and emit a regenerated reference file.
+          claude --help > test/fixtures/help/_root.txt
+          python3 tools/cli_surface.py generate > _claude.generated
+
+          git add test/fixtures/help/_root.txt _claude.generated
+          git commit -m "chore: sync CLI surface for claude ${VER}"
+          git push -u origin "$BRANCH"
+
+          # Build the PR body in a file (no fragile nested heredocs).
+          {
+            printf 'Automated drift report from `tools/cli_surface.py check` against **claude %s**.\n\n' "$VER"
+            printf '```\n'
+            cat drift-report.txt
+            printf '```\n\n'
+            printf -- '- `test/fixtures/help/_root.txt` refreshed to this version.\n'
+            printf -- '- `_claude.generated` is a regenerated **reference** (top-level options + command list, dynamic session block preserved). Fold the relevant changes into the hand-maintained `_claude` — do not blindly replace it, as the generated file omits the curated subcommand completers.\n'
+          } > pr-body.md
+
+          gh pr create \
+            --base main --head "$BRANCH" \
+            --title "Sync completions for Claude Code ${VER}" \
+            --body-file pr-body.md

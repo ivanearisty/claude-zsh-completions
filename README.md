@@ -141,6 +141,35 @@ tag          -- Create a {name}--v{version} git tag for a plugin release
 prune        -- Remove auto-installed dependencies that are no longer needed
 ```
 
+## Development & maintenance
+
+Claude Code is a [commander.js](https://github.com/tj/commander.js) program, and commander has no built-in completion generator ([tj/commander.js#2008](https://github.com/tj/commander.js/issues/2008) is still open), so `_claude` is hand-maintained. To keep that sane as the CLI evolves, the repo ships tooling that reads the CLI's own `--help`.
+
+### Tests
+
+```sh
+zsh test/run.zsh
+```
+
+Runs hermetically against a throwaway `CLAUDE_CONFIG_DIR` with fixture sessions (never your real `~/.claude`): a `zsh -n` + `compinit` lint pass, unit tests for the helpers, a real-TAB end-to-end test driven through `zsh/zpty`, and tests for the maintenance tool. CI (`.github/workflows/ci.yml`) runs the suite on Linux and macOS, plus a Linux job with `jq` removed to prove the dependency-free fallback.
+
+### `tools/cli_surface.py`
+
+Parses `claude --help` (and subcommand help) and has three modes:
+
+```sh
+python3 tools/cli_surface.py surface     # list every flag + command the CLI exposes
+python3 tools/cli_surface.py check       # diff the CLI against _claude; exit 1 on drift
+python3 tools/cli_surface.py generate    # emit a regenerated _claude to stdout
+```
+
+- **`check`** is the drift gate: it reports flags/commands that the CLI gained or lost relative to `_claude`. Use `--help-dir test/fixtures/help` to run against the committed fixture instead of invoking `claude`.
+- **`generate`** emits the top-level option block and command list, **preserving** the hand-written dynamic session block (delimited by the `>>> dynamic-sessions` markers) and applying an `OVERRIDES` table for file/dynamic completion actions that `--help` text can't imply. It does **not** reproduce the curated subcommand completers (`_claude_mcp`, `_claude_plugin`, …), so treat its output as a scaffold/reference, not a drop-in replacement.
+
+### Version tracking
+
+`.github/workflows/track-cli.yml` runs weekly (and on demand): it installs the latest Claude Code, runs `check`, and if the CLI surface has drifted it opens a PR (`cli-sync/<version>`) containing the drift report, a refreshed help fixture, and a regenerated `_claude.generated` reference to fold in by hand. It uses the preinstalled `gh` CLI — no third-party marketplace actions.
+
 ## License
 
 MIT
