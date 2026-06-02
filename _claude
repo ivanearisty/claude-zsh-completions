@@ -59,8 +59,13 @@ _claude_session_title() {
     for l in ${(f)hblob}; do
       [[ $l == *'"type":"user"'* ]] && { marker=$l; break }
     done
-    if [[ -n $marker ]] && (( $+commands[jq] )); then
-      title="$(print -r -- "$marker" | jq -r 'if (.message.content|type)=="string" then .message.content else empty end' 2>/dev/null)"
+    if [[ -n $marker ]]; then
+      if (( $+commands[jq] )); then
+        title="$(print -r -- "$marker" | jq -r 'if (.message.content|type)=="string" then .message.content else empty end' 2>/dev/null)"
+      elif [[ $marker == *'"content":"'* ]]; then
+        # jq-less: scrape string content only (array content needs jq -> stays untitled)
+        title="${marker#*\"content\":\"}"; title="${title%%\"*}"
+      fi
     fi
   fi
   title="${title//$'\n'/ }"
