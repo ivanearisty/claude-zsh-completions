@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}${{ matrix.no-jq && ', no jq' || '' }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        no-jq: [false]
+        include:
+          # Prove the jq-less fallback path on one runner.
+          - os: ubuntu-latest
+            no-jq: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install zsh + jq (Linux)
+        if: runner.os == 'Linux' && !matrix.no-jq
+        run: sudo apt-get update && sudo apt-get install -y zsh jq
+
+      - name: Install zsh, remove jq (Linux, no jq)
+        if: runner.os == 'Linux' && matrix.no-jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y zsh
+          sudo apt-get remove -y jq || true
+          sudo rm -f "$(command -v jq)" || true
+
+      - name: Tool versions
+        run: |
+          zsh --version
+          command -v jq && jq --version || echo "jq: absent (testing fallback)"
+
+      - name: Run test suite
+        run: zsh test/run.zsh
+
+  scripts:
+    name: lint scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint shell, Python, and the Homebrew formula
+        run: |
+          bash -n tools/update-formula.sh
+          python3 -m py_compile tools/cli_surface.py
+          ruby -c Formula/claude-zsh-completions.rb
